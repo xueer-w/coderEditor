@@ -1,0 +1,1320 @@
+<!DOCTYPE html>
+<html>
+<head>
+
+    <style>
+
+        body {
+            margin: 0;
+            padding: 0;
+            font-family: 'Consolas', monospace;
+            height: 200vh; /* 测试页面滚动 */
+        }
+
+        /* 控制台容器 */
+        #console-container {
+            position: fixed;
+            bottom: 0;
+            left: 0;
+            right: 0;
+            height: 200px;
+            background: #1e1e1e;
+            color: #e0e0e0;
+            border-top: 1px solid #333;
+            display: flex;
+            flex-direction: column;
+            z-index: 1000;
+        }
+
+        /* 控制台标题栏 */
+        #console-header {
+            background: #252526;
+            padding: 5px 10px;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            border-bottom: 1px solid #333;
+            user-select: none;
+        }
+
+        /* 控制台内容区域 */
+        #console-output {
+            flex: 1;
+            overflow-y: auto;
+            padding: 8px 10px;
+            font-size: 14px;
+            white-space: pre-wrap;
+        }
+
+        /* 控制台输入区域 */
+        #console-input {
+            display: flex;
+            padding: 8px 10px;
+            background: #252526;
+            border-top: 1px solid #333;
+        }
+
+        #console-input-prompt {
+            color: #569cd6;
+            margin-right: 8px;
+            line-height: 24px;
+        }
+
+        #console-input-field {
+            flex: 1;
+            background: transparent;
+            border: none;
+            color: #e0e0e0;
+            font-family: 'Consolas', monospace;
+            font-size: 14px;
+            outline: none;
+        }
+
+        /* 日志类型样式 */
+        .log-info { color: #e0e0e0; }
+        .log-success { color: #4ec9b0; }
+        .log-error { color: #f48771; }
+        .log-warning { color: #dcdcaa; }
+        .log-command { color: #569cd6; opacity: 0.8; }
+
+        /* 可折叠区域 */
+        .collapsible {
+            cursor: pointer;
+        }
+        .collapsible::before {
+            content: '▼';
+            display: inline-block;
+            width: 12px;
+            color: #569cd6;
+        }
+        .collapsible.collapsed::before {
+            content: '▶';
+        }
+    </style>
+
+
+
+    <style>
+        .editor {
+            font-size:150% ;
+            border: 1px solid #ccc;
+            padding: 10px;
+            font-family: monospace;
+            white-space: pre-wrap;
+            min-height: 100px;
+        }
+
+        .keyword { color: #33ef1b; }
+        .string { color: #ee407a; }
+        .comment { color: #6a9955; }
+        .number { color: #b5cea8; }
+        .function { color: #11e7fb; }
+        .structure {color: rgb(228, 126, 138);}
+        .separator {color: hsl(141, 91%, 55%);}
+        .var  { color:rgb(16, 195, 129) ;}
+        .parameter {color: rgb(247, 228, 17);}
+        .equal {color: rgb(170, 236, 13);}
+        .index {color: aliceblue;}
+        .rightVar {color: rgb(195, 235, 217);}
+        .RootVar {color: beige; }
+        .operation {color: #b43706;} 
+    </style>
+</head>
+<body>
+
+    <img src="na.jpg"  style="position: fixed; width:100% ;height: 100%;"  >
+    </img>
+    <div id="editor" class="editor"   style="position: absolute; width:100% ;height: 1250%; opacity: 80%; " ></div>
+
+
+    <!-- VS Code 风格控制台 -->
+    <div id="console-container">
+        <div id="console-header" class="collapsible">控制台</div>
+        <div id="runFile" class="collapsible">独立控制台</div>
+        <div id="console-output"></div>
+        <div id="console-input">
+            <span id="console-input-prompt">></span>
+            <input type="text" id="console-input-field" placeholder="输入代码后按回车执行...">
+        </div>
+    </div>
+
+
+    <script>
+
+    class LineContent{ 
+        
+        static rootDom=null;
+       
+        static PreSpace= 5;
+        static COLOR_EVEN='#292929';
+        static COLOR_ODD='#3B3B3B';
+        static totoCount=250;
+         
+       static lines=[];
+       static  curentLine=0;
+
+        constructor(number){
+           
+            if(LineContent.rootDom==null)
+              {
+                    LineContent.rootDom= document.getElementById("editor");
+              }
+
+
+            this.hello_string_exist=true;
+
+            this.number=number;
+            this.dom= document.createElement("div");
+            
+            this.preSpaceDom=document.createElement("div");
+            
+            LineContent.rootDom.appendChild(this.preSpaceDom);
+            LineContent. rootDom.appendChild(this.dom);
+
+             
+           // console.log(number);
+            
+            this.setStyle();
+
+           this. isComposing = false;
+           this. timeoutId=-1;
+
+          this.init_hello_string="welcome coder!";
+
+ 
+        // 初始化示例
+            this.dom.textContent =this.init_hello_string;
+
+            this.initEvent();
+            this.updateHighlight();
+        
+
+            LineContent.lines.push(this);
+        }
+
+
+        
+
+
+
+   
+         setStyle(){
+            
+        let  linestyle=` opacity:0.8;  margin:0;position:absolute;  left:${LineContent.PreSpace }% ; top:${ (this.number-1)/LineContent .totoCount *100 }% ; height:  ${1/LineContent. totoCount*100}%;`+
+         ` width: ${(100-LineContent .PreSpace)}%;  background-color:${ this.number %2==0?LineContent. COLOR_EVEN:LineContent .COLOR_ODD } ;`;
+        
+
+        let  spacestyle=`
+         position:absolute;margin:0;  padding-top:  6px;   color:green;  text-align: center; left: 0; top: ${ (this.number-1)/LineContent. totoCount *100}%; height:  ${1/LineContent. totoCount*100}%;`+
+         `width: ${LineContent. PreSpace}%;  background-color:${ (this.number-1) %2==0?LineContent. COLOR_EVEN:LineContent. COLOR_ODD };`;
+      
+
+        //  console.log( linestyle);
+        //  console.log(spacestyle);
+
+          this.preSpaceDom.setAttribute("style", spacestyle);
+          this.preSpaceDom.textContent=this.number;
+          this.dom.setAttribute("style", linestyle);
+          
+          this.dom.setAttribute("contenteditable",true);
+         }
+
+        
+
+     
+          initEvent(){
+
+            this.dom .addEventListener("keydown", (e)=>{
+
+               
+            if(this.number<LineContent.lines.length&&LineContent.lines[this.number] .hello_string_exist )
+                 {
+                      LineContent.lines[this.number].dom.click();
+                      this.dom.focus();
+                 }
+
+                if(this.number>1&&LineContent.lines[this.number-2] .hello_string_exist )
+                {
+                    LineContent.lines[this.number-2].dom.click();
+                    this.dom.focus();
+                }
+
+
+                if(this.hello_string_exist)
+                {    
+                     this.dom. textContent="";
+                     this.hello_string_exist=false;
+                }
+                
+
+              // console.log("key"+e.key);
+
+               switch(e.key){
+                 case  'ArrowDown':
+                 LineContent.handleNextLine(this);
+                 break;
+
+                 case  'Enter':
+
+                    LineContent.backOneLine(this.number-1);
+                    
+                    if(this.number-1< LineContent.lines.length-1)
+                    {
+                        //this.dom.removeChild
+                        ///LineContent.lines[ this.number].dom.innerHTML="";
+
+                       // LineContent.lines[ this.number].dom.click();
+
+                        let len= this.saveCursorPosition();
+                        let pad="";
+                        for(let i=0;i< len+1;i++)
+                           pad+=' ';
+
+                        LineContent.lines[ this.number].dom.textContent = pad+ LineContent.getEnterContent(this.dom).textContent;
+                        LineContent.lines[ this.number].isComposing=false;
+
+                        LineContent.lines[ this.number]. updateHighlight();
+                        
+                    } 
+
+                    LineContent.handleNextLine(this);
+                    break;
+                case  'ArrowUp':
+
+                    LineContent.handleUpLine(this);
+                
+                    break;
+                
+                    case "Backspace":
+                        if (this.saveCursorPosition()==0)
+                         LineContent.handleBackSpace(this);
+
+               }
+              
+            
+          });
+
+
+          this.dom .addEventListener("click", (e)=>{
+                if(this.hello_string_exist)
+                {
+                     this.dom. textContent="";
+                     this.hello_string_exist=false;
+                }
+
+                
+           this.dom.focus();
+
+          });
+
+
+            // 事件监听
+          this.dom.addEventListener('input', () => {
+
+            // console.log("text:"+this.dom.textContent+ this.dom.textContent.length);
+            // console.log("init:"+this.init_hello_string+this.init_hello_string.length);
+            // console.log(this.dom.textContent==this.init_hello_string);
+
+            if(this.number<LineContent.lines.length&&LineContent.lines[this.number] .hello_string_exist )
+                 {
+                      LineContent.lines[this.number].dom.click();
+                      this.dom.focus();
+                 }
+
+                if(this.number>1&&LineContent.lines[this.number-2] .hello_string_exist )
+                {
+                    LineContent.lines[this.number-2].dom.click();
+                    this.dom.focus();
+                }
+
+
+            if(this.hello_string_exist)
+             { 
+                
+                this.dom.textContent="";
+                this.hello_string_exist=false;
+              }
+
+
+            if(this.timeoutId>=0)
+               clearTimeout(this. timeoutId);
+
+           // console.log("inputing...");
+
+            this.timeoutId = setTimeout( this. updateHighlight.bind(this)  , 50);
+        });
+
+        this.dom.addEventListener('compositionstart', () =>{
+            
+            this. isComposing = true;
+
+             //console.log("conposit start");
+
+             if(this.dom.textContent==this.init_hello_string)
+                  this.dom.textContent="";
+             
+        });
+
+
+        this .dom.addEventListener('compositionend', () => {
+            ///console.log("conposit end");
+            this. isComposing = false;
+            
+           this. updateHighlight();
+        });
+        
+    }
+
+
+     static  moveNext(who, n){
+
+          
+           if(who.dom.textContent.length<n)
+            {
+             let pad="";
+
+            for(let i=0,len=n- who.dom.textContent.length;i<len;i++)
+                 pad+=' ';
+              
+                // const e= document.createElement("span");
+                // e.textContent=pad;
+                //who.dom.appendChild(e);
+                 who.dom.textContent+=pad;
+            }
+            
+            who.restoreCursorPosition(0+n); 
+      }
+
+
+    static  handleNextLine(now){
+
+            const  i= LineContent.lines.indexOf(now);
+            if(i==LineContent.lines.length-1)
+               i--;
+            
+          if(i>=0)
+            LineContent.lines[i].isComposing=false;
+           
+
+          const w=  LineContent.lines[i+1];
+
+           let last= LineContent.lines[i].saveCursorPosition();
+           
+           w.dom.click();
+        
+           LineContent.moveNext(w,last);
+
+           w.isComposing=false;
+           
+           w.updateHighlight();
+       }
+
+
+       static  handleBackSpace(now){
+
+           
+           let  i= LineContent.lines.indexOf(now);
+           
+           if(i==0)
+            return ;
+        
+
+            if(i>=0)
+              LineContent.lines[i].isComposing=false;
+            
+            const w=  LineContent.lines[i-1];
+
+            w.dom.click();
+
+            w.isComposing=false;
+             
+            const p=w.dom.textContent.length+1;
+
+           // LineContent.moveNext(w,  w.dom.textContent.length+1);
+
+            w.dom.textContent+= now.dom.textContent;
+           LineContent.strip(w.dom.textContent);
+            w.updateHighlight();
+            
+            LineContent.moveNext(w,p);
+            
+            if(now.number>1)
+               LineContent.upOne(now.number-1);
+
+       }
+
+
+        static  handleUpLine(now){
+
+            let  i= LineContent.lines.indexOf(now);
+            
+            if(i>=0)
+              LineContent.lines[i].isComposing=false;
+            
+            if(i==0)
+                i=1;
+    
+            const w=  LineContent.lines[i-1];
+
+            let last= LineContent.lines[i].saveCursorPosition();
+
+            w.dom.click();
+
+            w.isComposing=false;
+
+            //console.log("len:"+LineContent.lines [i].dom.textContent.length);
+        
+           LineContent.moveNext(w,last);
+
+            //console.log(last);
+
+             w.updateHighlight.bind(w)();
+
+          }
+
+
+        setRootDom(root){
+            LineContent.rootDom=root;
+        }
+
+        
+        getRootDom(){
+            return  LineContent.rootDom;
+        }
+
+        // 语法高亮规则（按优先级排序）
+       static syntaxRules = [
+            {
+                type: 'comment',
+                regex: /^\/\/.*[^\n]/
+            },
+
+            {
+                type: 'separator',
+                regex: /[,;]/
+            },
+          
+            {
+                type:'comment',
+                regex:/^\/\*.*\*\//
+            },
+            
+            {
+              type: 'structure',
+               regex:/(\()/
+            },
+            {
+              type: 'structure',
+               regex:/(\[)/
+            },
+            {
+              type: 'structure',
+               regex:/(\])/
+            },
+            {
+              type: 'structure',
+               regex:/(\))/
+            },
+            {
+              type: 'structure',
+               regex:/({)/
+            },
+            {
+              type: 'structure',
+               regex:/(})/
+            },
+
+            {
+                type: 'string',
+                regex: /^"(?:[^"\\]|\\.)*?"|^'(?:[^'\\]|\\.)*?'/
+            },
+            {
+                type: 'function',
+                regex: /^(\w+)\s*(?=\()/
+            },
+            {
+                type:'var',
+                regex: /^(\w{1,}\d*)\s*(?=[=\[])/  
+            },
+            {
+                type:'var',
+                regex: /^(\w{1,}\d*)\s*(?=[=\[])/  
+            },
+            {
+                type:'parameter',
+                regex: /^(\w+\d*)\s*(?=[,\)])/  
+            },
+            {
+                type:'operation',
+                regex: /([\+\-\<\>]+)/  
+            },
+            {
+                type:'rightVar',
+                regex: /\s*(\w+\d*)\s*(?=[;])/  
+            },
+            {
+                type:'equal',
+                regex: /(=)[^=]/  
+            },
+            {
+                type:'index',
+                regex: /\s*([\w]+|\d+)\s*(?=\])/  
+            },
+            
+
+            {
+                type: 'keyword',
+                regex: /^\b(function|if|else|for|while|return|let|const|var|class|static)\b/
+            },
+            {
+                type: 'number',
+                regex: /^\b\d+\.?\d*\b/
+            },
+
+            {
+                type: 'RootVar',
+                regex: /[\s*(\w+\d*)\s*(?=\.)]/
+            },
+        ];
+
+        // 保存光标位置
+        saveCursorPosition() {
+
+            const sel = window.getSelection();
+            if (sel.rangeCount === 0) return 0;
+            const range = sel.getRangeAt(0);
+            const preRange = range.cloneRange();
+            preRange.selectNodeContents(this.dom);
+            preRange.setEnd(range.endContainer, range.endOffset);
+           //  console.log("range");
+            ///console.log( preRange.toString());
+            return preRange.toString().length;
+        }
+
+
+
+
+        // 恢复光标位置
+        restoreCursorPosition(pos) {
+
+            const sel = window.getSelection();
+            const range = document.createRange();
+            let charCount = 0;
+            let found = false;
+
+           // console.log(pos);
+
+
+            // function squee(node){
+
+            //      if(node.textContent.length==0)
+            //        {
+            //           node.setAttribute("width",0);
+            //        }
+
+            //   for (const child of node.childNodes) 
+            //        squee(child);
+        
+            // }
+
+
+            // console.log(this.dom);
+            // console.log( "\'"+ this.dom.textContent+"\'"+  this.dom.textContent.length);
+
+            // console.log(this.dom.nodeType ===Node.TEXT_NODE + "  "+ this.dom.length);
+
+
+            // console.log(this.dom.childNodes);
+            // console.log(this.dom.childNodes[0].nodeType == Node.TEXT_NODE  +this.dom.childNodes[0].length);
+            // console.log(this.dom.childNodes[0].nodeType+" type");
+            // console.log(this.dom.length);
+
+            function traverse(node) {
+                  
+                if (found || node.nodeType === Node.COMMENT_NODE) return;
+                
+                if (node.nodeType === Node.TEXT_NODE  ) {
+
+                    // console.log("finded");
+                    // console.log(node);
+
+                    let nextCount;
+                     /// node.nodeType === Node.TEXT_NODE 
+                    nextCount= charCount + node.length;
+
+                    // else    nextCount= charCount + node.textContent.length;
+
+                    if (!found && pos >= charCount && pos <= nextCount) {
+                        
+                       // console.log(node.childNodes);
+
+                        range.setStart(node, pos - charCount);
+                        //range.setEnd(node, pos - charCount-);
+                        // console.log(node.textContent+"  len:"+node.length);
+                        // console.log(node);
+                        // console.log(pos-charCount);
+                        range.collapse(true);
+                        found = true;
+                        return;
+                    }
+                    charCount = nextCount;
+                } else {
+                    for (const child of node.childNodes) {
+                        traverse(child);
+                        if (found) break;
+                    }
+                }
+            }
+
+
+            // squee(this.dom);
+
+            traverse(this.dom);
+            
+           /// console.log(found);
+
+            sel.removeAllRanges();
+            sel.addRange(range);
+        }
+
+       tokenize(text) {
+
+            const tokens = [];
+            let remaining = text;
+
+            while (remaining.length > 0) {
+                let matched = false;
+
+                for (const rule of LineContent .syntaxRules) {
+                    rule.regex.lastIndex = 0;
+                    const match = rule.regex.exec(remaining);
+                    
+                    if (match && match.index === 0) {
+                        const value = match[0];
+                        tokens.push({ type: rule.type, value });
+                        remaining = remaining.slice(value.length);
+                        matched = true;
+                        break;
+                    }
+                }
+
+                if (!matched) {
+                    const value = remaining[0];
+                    tokens.push({ type: 'plain', value });
+                    remaining = remaining.slice(1);
+                }
+            }
+
+            return tokens;
+        }
+
+       highlight(text) {
+
+            return this.tokenize(text).map(({ type, value }) => {
+                return type === 'plain' ? 
+                    value : 
+                    `<span class="${type}">${value}</span>`;
+            }).join('');
+        }
+
+        updateHighlight() {
+
+            if (this.isComposing) return;
+            
+            // console.log("i am out");
+        
+            //console.log("i am in suceess")
+
+            const text = this.dom.textContent;
+            // console.log("左下角 "+this.dom.textContent);
+            // console.log(text);
+
+           // console.log(text);
+
+            const pos = this. saveCursorPosition();
+            
+         //   console.log(this. highlight(text));
+
+            this.dom. innerHTML = this. highlight(text);
+            this. restoreCursorPosition(pos);
+            
+        }
+
+
+
+
+        static 
+        getEnterContent( dom){
+
+    const sourceDiv =dom;
+   
+    const selection = window.getSelection();
+    
+    // 1. 获取当前光标位置对应的 Range
+    const range = selection.getRangeAt(0);
+
+    // 2. 创建新范围，定位到原始光标位置
+    const newRange = document.createRange();
+    newRange.setStart(range.startContainer, range.startOffset); // 关键代码
+    
+    // 3. 选择从光标到源 div 末尾的内容
+    newRange.setEndAfter(sourceDiv.lastChild); 
+
+    // 4. 提取并移动内容
+    const fragment = newRange.extractContents();
+    return   fragment;
+
+    // // 5. 恢复光标到原位置（此时原位置可能已变化）
+    // selection.removeAllRanges();
+    // selection.addRange(range);
+     }
+
+
+     static 
+    backOneLine(now){
+       
+         if(now==0)
+          return ;
+
+        const  ls=LineContent.lines;
+         
+        ls[now].hello_string_exist =false;
+
+        for(let  i= ls.length-1 ;i>now+1;i-- )
+            {    
+                 ls[i].dom.innerHTML= ls[i-1].dom.innerHTML;
+                ls[i].hello_string_exist =ls[i-1].hello_string_exist;
+            }
+            
+    }
+
+
+
+    static  upOne(now){
+        
+        const ls=LineContent.lines;
+
+        for(let i=now;i<ls.length-1;i++)
+            ls[i].dom. innerHTML= ls[i+1].dom.innerHTML,
+            ls[i].hello_string_exist=ls[i+1].hello_string_exist;
+
+          ls[ls.length-1].dom.textContent =now .init_hello_string;
+          ls[ls.length-1].updateHighlight();
+    }
+
+
+
+     static  strip(text){
+        //   let res="";
+        //     for(const c of text)
+        //        if(c!='\r' && c!='\n' &&  c!='\r\n')
+        //           res+=c;
+
+        //       text=res;
+     }
+
+     
+    
+
+    static  collapse(){
+     let res="";
+     
+     for(const  s of  LineContent.lines)
+         {
+            if(s.hello_string_exist)
+             continue;
+           res+= s.dom.textContent+"\n";
+         }
+
+        // console.log(res);
+
+        // console.log("begin compile");
+        // console.log(compileAndRun(res));
+        
+        // console.log("program end");
+        return   res;
+    }
+
+     
+    }
+
+
+
+
+    function compileAndRun(codeString) {
+            try {
+                // 直接在当前作用域执行
+                const result = eval(codeString);
+                return { success: true, result };
+            } catch (error) {
+
+                return {
+                success: false,
+                error: {
+                    message: error.message,
+                    stack: error.stack,
+                    // 在Chrome/Firefox中可解析行列号
+                    line: error.stack.match(/<anonymous>:(\d+):\d+/)?.[1] || 'unknown'
+                }
+                };
+            
+        }
+
+    }
+
+
+
+
+
+    let codes=` class LineContent{ 
+        
+        static rootDom=null;
+       
+        static PreSpace= 5;
+        static COLOR_EVEN='#292929';
+        static COLOR_ODD='#3B3B3B';
+        static totoCount=200;
+         
+       static lines=[];
+       static  curentLine=0;
+
+        constructor(number){
+           
+            if(LineContent.rootDom==null)
+              {
+                    LineContent.rootDom= document.getElementById("editor");
+              }
+
+
+            this.hello_string_exist=true;
+
+            this.number=number;
+            this.dom= document.createElement("div");
+            
+            this.preSpaceDom=document.createElement("div");
+            
+            LineContent.rootDom.appendChild(this.preSpaceDom);
+            LineContent. rootDom.appendChild(this.dom);
+
+             
+           // console.log(number);
+            
+            this.setStyle();
+
+           this. isComposing = false;
+           this. timeoutId=-1;
+
+          this.init_hello_string="welcome coder!";
+
+ 
+        // 初始化示例
+            this.dom.textContent =this.init_hello_string;
+
+            this.initEvent();
+            this.updateHighlight();
+        
+
+            LineContent.lines.push(this);
+        }
+
+
+        
+
+
+
+   
+         setStyle(){
+            
+        //  console.log( linestyle);
+        //  console.log(spacestyle);
+
+          this.preSpaceDom.setAttribute("style", spacestyle);
+          this.preSpaceDom.textContent=this.number;
+          this.dom.setAttribute("style", linestyle);
+          
+          this.dom.setAttribute("contenteditable",true);
+         }
+
+
+
+          // 恢复光标位置
+        restoreCursorPosition(pos) {
+
+            const sel = window.getSelection();
+            const range = document.createRange();
+            let charCount = 0;
+            let found = false;
+
+           // console.log(pos);
+
+
+            // function squee(node){
+
+            //      if(node.textContent.length==0)
+            //        {
+            //           node.setAttribute("width",0);
+            //        }
+
+            //   for (const child of node.childNodes) 
+            //        squee(child);
+        
+            // }
+
+
+            // console.log(this.dom);
+            // console.log( "\'"+ this.dom.textContent+"\'"+  this.dom.textContent.length);
+
+            // console.log(this.dom.nodeType ===Node.TEXT_NODE + "  "+ this.dom.length);
+
+
+            // console.log(this.dom.childNodes);
+            // console.log(this.dom.childNodes[0].nodeType == Node.TEXT_NODE  +this.dom.childNodes[0].length);
+            // console.log(this.dom.childNodes[0].nodeType+" type");
+            // console.log(this.dom.length);
+
+            function traverse(node) {
+                  
+                if (found || node.nodeType === Node.COMMENT_NODE) return;
+                
+                if (node.nodeType === Node.TEXT_NODE  ) {
+
+                    // console.log("finded");
+                    // console.log(node);
+
+                    let nextCount;
+                     /// node.nodeType === Node.TEXT_NODE 
+                    nextCount= charCount + node.length;
+
+                    // else    nextCount= charCount + node.textContent.length;
+
+                    if (!found && pos >= charCount && pos <= nextCount) {
+                        
+                       // console.log(node.childNodes);
+
+                        range.setStart(node, pos - charCount);
+                        //range.setEnd(node, pos - charCount-);
+                        // console.log(node.textContent+"  len:"+node.length);
+                        // console.log(node);
+                        // console.log(pos-charCount);
+                        range.collapse(true);
+                        found = true;
+                        return;
+                    }
+                    charCount = nextCount;
+                } else {
+                    for (const child of node.childNodes) {
+                        traverse(child);
+                        if (found) break;
+                    }
+                }
+            }
+
+
+            // squee(this.dom);
+
+            traverse(this.dom);
+            
+           /// console.log(found);
+
+            sel.removeAllRanges();
+            sel.addRange(range);
+        }
+
+       tokenize(text) {
+
+            const tokens = [];
+            let remaining = text;
+
+            while (remaining.length > 0) {
+                let matched = false;
+
+                for (const rule of LineContent .syntaxRules) {
+                    rule.regex.lastIndex = 0;
+                    const match = rule.regex.exec(remaining);
+                    
+                    if (match && match.index === 0) {
+                        const value = match[0];
+                        tokens.push({ type: rule.type, value });
+                        remaining = remaining.slice(value.length);
+                        matched = true;
+                        break;
+                    }
+                }
+
+                if (!matched) {
+                    const value = remaining[0];
+                    tokens.push({ type: 'plain', value });
+                    remaining = remaining.slice(1);
+                }
+            }
+
+            return tokens;
+        }
+
+}
+    `;
+
+
+
+    
+        
+function  MyConsole(){
+
+// 控制台状态管理
+const consoleState = {
+    isExpanded: true,
+    history: [],
+    historyIndex: -1
+};
+
+// DOM 元素
+const consoleContainer = document.getElementById('console-container');
+const consoleHeader = document.getElementById('console-header');
+const consoleOutput = document.getElementById('console-output');
+const consoleInput = document.getElementById('console-input-field');
+
+const  runFile= document.getElementById("runFile"); 
+
+runFile.runfile=true;
+
+runFile.timeoutId =setInterval( ()=>{Con.exec (LineContent.collapse());}, 2000);
+
+
+function initConsole() {
+    // 折叠/展开功能
+    consoleHeader.addEventListener('click', () => {
+        consoleState.isExpanded = !consoleState.isExpanded;
+        consoleHeader.classList.toggle('collapsed');
+        consoleOutput.style.display = consoleState.isExpanded ? 'block' : 'none';
+        consoleInput.style.display = consoleState.isExpanded ? 'flex' : 'none';
+        consoleContainer.style.height = consoleState.isExpanded ? '200px' : '30px';
+    });
+
+
+    runFile.addEventListener("click",()=>{
+         if(runFile.runfile){
+              runFile.runfile=false;
+              clearInterval (runFile.timeoutId);
+              runFile.textContent="runFile";
+         }
+         else {
+             runFile.runfile=true;
+            runFile.timeoutId =setInterval( ()=>{Con.exec (LineContent.collapse());}, 2000);
+            runFile.textContent="独立控制台";
+         }
+    });
+
+
+    consoleInput.addEventListener('keydown', (e) => {
+        if (e.key === 'Enter') {
+            executeCommand(consoleInput.value);
+        } else if (e.key === 'ArrowUp') {
+            navigateHistory(-1);
+        } else if (e.key === 'ArrowDown') {
+            navigateHistory(1);
+        }
+    });
+
+    // 初始日志
+    log('控制台已初始化', 'success');
+    log('输入 JavaScript 代码并按回车执行', 'info');
+}
+
+
+
+
+function executeCommand(command) {
+ if (!command.trim()) return;
+
+// 添加到历史记录
+consoleState.history.push(command);
+consoleState.historyIndex = consoleState.history.length;
+
+// 显示输入的命令
+log(`> ${command}`, 'command');
+
+try {
+// 创建增强版沙箱环境
+const sandbox = {
+    console: {
+        log: (...args) => log(args.join(' '), 'info'),
+        error: (...args) => log(args.join(' '), 'error'),
+        warn: (...args) => log(args.join(' '), 'warning')
+    },
+    Math: Math,
+    JSON: JSON,
+    Date: Date
+};
+
+// 改进的执行包装
+const wrappedCode = `
+    (function() {
+        "use strict";
+        try {
+            ${command}
+            return { 
+                type: 'success', 
+                value: typeof lastResult !== 'undefined' ? lastResult : undefined 
+            };
+        } catch(e) {
+            return { 
+                type: 'error', 
+                error: e,
+                isSyntaxError: e instanceof SyntaxError
+            };
+        }
+    })()
+`;
+
+const fn = new Function('context', `
+    with(context) {
+        try {
+            var lastResult;
+            ${command.includes('\n') || command.includes(';') ? 
+                `lastResult = (function(){ ${command} })()` : 
+                `lastResult = ${command}`
+            }
+            return { type: 'success', value: lastResult };
+        } catch(e) {
+            return { 
+                type: 'error', 
+                error: e,
+                isSyntaxError: e instanceof SyntaxError
+            };
+        }
+    }
+`);
+
+const result = fn(sandbox) || {};
+
+// 处理执行结果
+if (result.type === 'error') {
+    if (result.isSyntaxError) {
+        // 尝试作为声明处理
+        try {
+            new Function('context', `
+                with(context) {
+                    ${command}
+                }
+            `)(sandbox);
+            log('Declaration executed', 'success');
+        } catch (declError) {
+            log(`Syntax Error: ${declError.message}`, 'error');
+            log(declError.stack, 'error');
+        }
+    } else {
+        log(`Runtime Error: ${result.error.message}`, 'error');
+        log(result.error.stack, 'error');
+    }
+} else if (result.value !== undefined) {
+    log(String(result.value), 'success');
+} else {
+    log('Command executed (no return value)', 'info');
+}
+} catch (error) {
+log(`Fatal Error: ${error.message}`, 'error');
+log(error.stack, 'error');
+}
+
+consoleInput.value = '';
+}
+
+
+
+function navigateHistory(direction) {
+    if (consoleState.history.length === 0) return;
+    
+    consoleState.historyIndex = Math.max(0, 
+        Math.min(consoleState.history.length, 
+            consoleState.historyIndex + direction));
+    
+    if (consoleState.historyIndex < consoleState.history.length) {
+        consoleInput.value = consoleState.history[consoleState.historyIndex];
+    } else {
+        consoleInput.value = '';
+    }
+}
+
+
+function log(message, type = 'info') {
+    const line = document.createElement('div');
+    line.className = `log-${type}`;
+    line.textContent = message;
+    consoleOutput.appendChild(line);
+    
+    // 自动滚动到底部
+    consoleOutput.scrollTop = consoleOutput.scrollHeight;
+}
+
+
+function showCompilationError(error) {
+    log(`编译错误: ${error.message}`, 'error');
+    if (error.line) {
+        log(`位置: 第 ${error.line} 行`, 'info');
+    }
+}
+
+// 初始化
+initConsole();
+
+// 示例使用
+setTimeout(() => {
+    log('尝试输入: 2 + 2 或 console.log("Hello")', 'info');
+}, 1000);
+
+// // 模拟编译错误
+// setTimeout(() => {
+//     try {
+//         // 故意抛出错误
+//         throw new Error('Unexpected token }');
+//     } catch (error) {
+//         showCompilationError({
+//             message: error.message,
+//             line: 42
+//         });
+//     }
+// }, 1500);
+
+
+
+
+return  {exec: executeCommand};
+
+}
+
+
+
+
+ var Con = MyConsole();
+
+
+   // console.log(LineContent);
+
+   const splitLines = (str) => str.split(/\r?\n|\r/);
+
+    const lines=splitLines(codes);
+
+    for(let i=0;i< LineContent.totoCount;i++)
+     { 
+        const l= new  LineContent(i+1);
+        
+        if(i<lines.length){
+          l.hello_string_exist=false;
+          l.dom.textContent=lines[i];
+          l.updateHighlight();
+        }
+     }
+
+    
+
+      
+      
+     
+   //   setInterval(LineContent.collapse,2000);
+  
+   
+  
+
+    </script>
+</body>
+</html>
