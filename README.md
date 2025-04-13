@@ -40,3 +40,19 @@ Non-blocking communication between components
 
 # Program Object
 This project demonstrates deep browser runtime manipulation capabilities, from lexical analysis to execution environment virtualization. The solution provides insights into compiler fundamentals while establishing a foundation for building low-dependency web toolchains. All functionalities achieve native-level performance through meticulous JavaScript optimization, serving as a practical case study for browser engine internals.
+
+# Contact me
+Developed by XuJu Zhong (钟旭炬) under License: MIT License © 2025 [xujuZhong]
+
+▸ For source code sharing or modification: Retain original author credit in header comments Preserve license file in distribution
+
+Contact Developer: 📧 2756447543@qq.com
+
+Your feedback and suggestions are valuable for improving this learning resource!
+
+
+![runtime demo 1](screen_snap.png)
+
+![runtime demo 2](screen_snap2.png)
+
+
